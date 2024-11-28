@@ -1,109 +1,110 @@
+import java.awt.*;
 import java.io.*;
 import java.net.*;
-class Server
-{
+import javax.swing.*;
 
-    ServerSocket server;
-    Socket socket;
+public class Server {
 
-    BufferedReader br;
-    PrintWriter out;
-    //br for reading and out for writing
+    private ServerSocket serverSocket;
+    private JTextArea textArea;
+    private JTextField inputField;
+    private PrintWriter out;
 
-    //constructor
-    public Server()
-    {
-       try {
-           server=new ServerSocket(7777);
-           System.out.println("server is ready to accept connection");
-           System.out.println("Waiting...");
-           socket=server.accept();
-
-           br=new BufferedReader(new InputStreamReader(socket.getInputStream()));
-           out=new PrintWriter(socket.getOutputStream());
-
-           startReading();
-           startWriting();
-       } 
-       catch (Exception e) 
-       {
-           e.printStackTrace();  
-       }
-    }
-
-    public void startReading()
-    {
-         // thread- will read and continue giving
-        Runnable r1=()->{
-           System.out.println("reader started..");
-           try{
-           while(true)
-           { 
-
-                String msg=br.readLine();
-                if(msg.equals("exit"))
-                {
-                    System.out.println("Client terminated the chat");
-                    socket.close();
-                    break;
-                }
-
-                System.out.println("Client : "+msg);
-           
-           }
-        }
-        catch(Exception e)
-        {
-            //e.printStackTrace(e);
-            System.out.println("Connection is closed");
-        }
-       
-        };
-
-        new Thread(r1).start();
-    }
-
-    public void startWriting()
-    {
-         //thread- will take data from user and send to client
-        Runnable r2=()->{
-              System.out.println("writer started...");
-              try{
-              while(true && !socket.isClosed()) 
-              {
-                 
-            
-                     BufferedReader br1=new BufferedReader(new InputStreamReader(System.in));
-                     //taking input from console or console means keyboard
-
-                     String content=br1.readLine();
-                     
-                     out.println(content);
-                     out.flush();
-
-                     if(content.equals("exit"))
-                     {
-                        socket.close();
-                        break;
-                     }
-
-                 
-              }
-            }  
-            catch (Exception e)
-            {
-                //e.printStackTrace();
-                System.out.println("Connection is closed");
+    public Server() {
+        try {
+            // Start the server on port 7777
+            serverSocket = new ServerSocket(7777);
+            createGUI();
+            textArea.append("Server is running...\n");
+            while (true) {
+                // Accept client connections
+                Socket clientSocket = serverSocket.accept();
+                textArea.append("New client connected: " + clientSocket + "\n");
+                // Handle the client in a new thread
+                new ClientHandler(clientSocket).start();
             }
-              
-        };
-
-        new Thread(r2).start();
-
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
-    public static void main(String[] args)
-    {
-        System.out.println("This is server.... going to start server");
+
+    private void createGUI() {
+        JFrame frame = new JFrame("Server");
+        textArea = new JTextArea();
+        textArea.setEditable(false);
+        JScrollPane scrollPane = new JScrollPane(textArea);
+
+        inputField = new JTextField();
+        JButton sendButton = new JButton("Send");
+
+        sendButton.addActionListener(e -> {
+            String message = inputField.getText();
+            if (message != null && !message.isEmpty()) {
+                textArea.append("Server: " + message + "\n");
+                out.println(message);  // Send message to the client
+                out.flush();           // Ensure it's sent
+                inputField.setText(""); // Clear the input field
+                if (message.equalsIgnoreCase("exit")) {
+                    try {
+                        serverSocket.close(); // Close the server connection
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                    }
+                }
+            }
+        });
+
+        frame.setLayout(new BorderLayout());
+        frame.add(scrollPane, BorderLayout.CENTER);
+        JPanel panel = new JPanel();
+        panel.setLayout(new BorderLayout());
+        panel.add(inputField, BorderLayout.CENTER);
+        panel.add(sendButton, BorderLayout.EAST);
+        frame.add(panel, BorderLayout.SOUTH);
+
+        frame.setSize(400, 300);
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setVisible(true);
+    }
+
+    private class ClientHandler extends Thread {
+        private Socket socket;
+        private BufferedReader in;
+
+        public ClientHandler(Socket socket) {
+            this.socket = socket;
+            try {
+                in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                out = new PrintWriter(socket.getOutputStream(), true);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void run() {
+            try {
+                String message;
+                while ((message = in.readLine()) != null) {
+                    textArea.append("Client: " + message + "\n");
+                    if (message.equalsIgnoreCase("exit")) {
+                        textArea.append("Client disconnected.\n");
+                        break;
+                    }
+                }
+            } catch (IOException e) {
+                textArea.append("Connection error.\n");
+            } finally {
+                try {
+                    socket.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    public static void main(String[] args) {
         new Server();
     }
 }
