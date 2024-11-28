@@ -1,175 +1,70 @@
-import java.awt.BorderLayout;
-import java.awt.Font;
-import java.awt.event.KeyEvent;
+import java.awt.*;
 import java.io.*;
 import java.net.*;
-import javax.swing.BorderFactory;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JTextArea;
-import javax.swing.JTextField;
-import javax.swing.SwingConstants;
+import javax.swing.*;
 
-public class Client extends JFrame {
+public class Client {
 
-    Socket socket;
-    BufferedReader br;
-    PrintWriter out;
+    private Socket socket;
+    private BufferedReader in;
+    private PrintWriter out;
+    private JTextArea textArea;
+    private JTextField inputField;
 
-    //Declare Components
-    private JLabel heading=new JLabel("Client Area");
-    private JTextArea messageArea=new JTextArea();
-    private JTextField messageInput=new JTextField();
-    private Font font=new Font("Roboto",Font.PLAIN,20);
-
-
-    public Client()
-    {
-        try
-        {
-          // System.out.println("Sending request to server");
-           //socket=new Socket("127.0.0.1",7777);
-           //System.out.println("Connection done.");
-
-           //br=new BufferedReader(new InputStreamReader(socket.getInputStream()));
-           //out=new PrintWriter(socket.getOutputStream());
-
-           createGUI();
-           handleEvents();
-
-           //startReading();
-           //startWriting();
-        }
-        catch(Exception e)
-        {
+    public Client() {
+        try {
+            // Connect to the server on localhost and port 7777
+            socket = new Socket("localhost", 7777);
+            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            out = new PrintWriter(socket.getOutputStream(), true);
+            createGUI();
+            new Thread(this::readMessages).start();
+        } catch (IOException e) {
             e.printStackTrace();
-        }  
-    }
-
-    private void handleEvents()
-    {
-        messageInput.addKeyListener(new KeyListener()){
-            @Override
-            public void KeyTyped(KeyEvent e){
-
-            }
-
-            @Override
-            public void KeyPresse(KeyEvent e){
-                
-            }
-
-            @Override
-            public void KeyReleased(KeyEvent e){
-                System.out.println("Key released "+e.getKeyCode());
-                if(e.getKeyCode()==10)
-                {
-                    System.out.println("you have pressed enter button");
-                }
-            }
         }
     }
 
-    private void createGUI()
-    {
-        this.setTitle("Client Messager[END]");
-        this.setSize(600,600);
-        this.setLocationRelativeTo(null);//make the window at the centre
-        this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);//on clicking cross the program ends
-        this.setVisible(true);
+    private void createGUI() {
+        JFrame frame = new JFrame("Client");
+        textArea = new JTextArea();
+        textArea.setEditable(false);
+        inputField = new JTextField();
 
-        //coding for components
-        heading.setFont(font);
-        messageArea.setFont(font);
-        messageInput.setFont(font);
-
-        heading.setHorizontalAlignment(SwingConstants.CENTER);
-        heading.setBorder(BorderFactory.createEmptyBorder(20,20,20,20));
-        messageInput.setHorizontalAlignment(SwingConstants.CENTER);
-        //creating space surrounding the heading top-left-bottom-right
-
-        //frame layout set
-        this.setLayout(new BorderLayout());
-        //adding components to frame
-        this.add(heading,BorderLayout.NORTH);
-        this.add(messageArea,BorderLayout.CENTER);
-        this.add(messageInput,BorderLayout.SOUTH);
-
-    }
-
-    public void startReading()
-    {
-         // thread- will read and continue giving
-        Runnable r1=()->{
-           System.out.println("reader started..");
-           try{
-           while(true)
-           { 
-              
-              
-                String msg=br.readLine();
-                if(msg.equals("exit"))
-                {
-                    System.out.println("Server terminated the chat");
+        inputField.addActionListener(e -> {
+            String message = inputField.getText();
+            textArea.append("You: " + message + "\n");
+            out.println(message);
+            inputField.setText("");
+            if (message.equalsIgnoreCase("exit")) {
+                try {
                     socket.close();
-                    break;
+                } catch (IOException ex) {
+                    ex.printStackTrace();
                 }
+            }
+        });
 
-                System.out.println("Server : "+msg);
-            
-           }
-        }
-        catch(Exception e)
-        {
-            //e.printStackTrace();
-            System.out.println("Connection is closed");
-        }
-        };
-
-        new Thread(r1).start();
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        frame.setLayout(new BorderLayout());
+        frame.add(scrollPane, BorderLayout.CENTER);
+        frame.add(inputField, BorderLayout.SOUTH);
+        frame.setSize(400, 300);
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setVisible(true);
     }
 
-    public void startWriting()
-    {
-         //thread- will take data from user and send to client
-        Runnable r2=()->{
-              System.out.println("writer started...");
-              try{
-              while(true && !socket.isClosed()) 
-              {
-                 
-                     BufferedReader br1=new BufferedReader(new InputStreamReader(System.in));
-                     //taking input from console or console means keyboard
-
-                     String content=br1.readLine();
-
-                     out.println(content);
-                     out.flush();
-
-                     if(content.equals("exit"))
-                     {
-                        socket.close();
-                        break;
-                     }
-
-                 }
-              } 
-              catch(Exception e)
-              {
-                //e.printStackTrace();
-                System.out.println("Connection is closed");
-              }
-              
-        };
-                  
-        new Thread(r2).start();
-
+    private void readMessages() {
+        try {
+            String message;
+            while ((message = in.readLine()) != null) {
+                textArea.append("Server: " + message + "\n");
+            }
+        } catch (IOException e) {
+            textArea.append("Connection closed.\n");
+        }
     }
-    
-    public static void main(String args[])
-    {
-        System.out.println("This is Client");
+
+    public static void main(String[] args) {
         new Client();
     }
-    
 }
