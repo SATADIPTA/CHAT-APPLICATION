@@ -1,6 +1,7 @@
 import java.awt.*;
 import java.io.*;
 import java.net.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import javax.swing.*;
 
 public class Server {
@@ -8,7 +9,7 @@ public class Server {
     private ServerSocket serverSocket;
     private JTextArea textArea;
     private JTextField inputField;
-    private PrintWriter out;
+    private static final CopyOnWriteArrayList<ClientHandler> clientHandlers = new CopyOnWriteArrayList<>();
 
     public Server() {
         try {
@@ -21,7 +22,9 @@ public class Server {
                 Socket clientSocket = serverSocket.accept();
                 textArea.append("New client connected: " + clientSocket + "\n");
                 // Handle the client in a new thread
-                new ClientHandler(clientSocket).start();
+                ClientHandler clientHandler = new ClientHandler(clientSocket);
+                clientHandlers.add(clientHandler); // Add the client handler to the list
+                clientHandler.start();
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -41,8 +44,7 @@ public class Server {
             String message = inputField.getText();
             if (message != null && !message.isEmpty()) {
                 textArea.append("Server: " + message + "\n");
-                out.println(message);  // Send message to the client
-                out.flush();           // Ensure it's sent
+                sendMessageToAllClients(message);  // Send message to all connected clients
                 inputField.setText(""); // Clear the input field
                 if (message.equalsIgnoreCase("exit")) {
                     try {
@@ -67,9 +69,24 @@ public class Server {
         frame.setVisible(true);
     }
 
+    // Send message to all clients
+    private void sendMessageToAllClients(String message) {
+        for (ClientHandler clientHandler : clientHandlers) {
+            clientHandler.sendMessage(message);  // Send message to each client
+        }
+    }
+
+    // Send message to a specific client based on index
+    private void sendMessageToSpecificClient(int index, String message) {
+        if (index >= 0 && index < clientHandlers.size()) {
+            clientHandlers.get(index).sendMessage(message);
+        }
+    }
+
     private class ClientHandler extends Thread {
         private Socket socket;
         private BufferedReader in;
+        private PrintWriter out;
 
         public ClientHandler(Socket socket) {
             this.socket = socket;
@@ -97,9 +114,18 @@ public class Server {
             } finally {
                 try {
                     socket.close();
+                    clientHandlers.remove(this);  // Remove client handler from the list when the client disconnects
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
+            }
+        }
+
+        // Method to send message to a specific client
+        public void sendMessage(String message) {
+            if (out != null) {
+                out.println(message);
+                out.flush();
             }
         }
     }
